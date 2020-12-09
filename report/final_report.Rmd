@@ -1,6 +1,6 @@
 ---
 title: "Filling Survey Missing Data With Generative Adversarial Imputation Networks"
-author: "Cesar Y. Villarreal Guzman"
+author: "CYVG"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output: pdf_document
 fontsize: 12pt
@@ -78,128 +78,11 @@ could be applied in practice, limitations and areas of future work.
 
 ## 2.1 Generative Adversarial Imputation Networks
 
-First to understand generative adversarial imputation networks (GAIN) we 
-comment on the GAN framework. Generative adversarial nets (GANs) define a framework for estimating 
-generative models via an adversarial process in which two models are 
-trained: a generative model $G$ that captures the data distribution, and a 
-discriminative model $D$ that estimates the probability that a sample came 
-from the training data rather than $G$ [@goodfellow]. Commonly both the 
-generator and discriminator are two separate neural networks.
-
-Generative adversarial imputation networks (GAIN) is an imputation
-algorithm that generalized the idea of traditional GANs. The generator's
-goal is to accurately impute the missing data and the discriminator’s goal
-is to distinguish between observed and imputed components. The discriminator is 
-trained to minimize the classification loss (when classifying which components 
-were observed and which have been imputed), and the generator is trained
-to maximize the discriminator’s misclassification rate [@yoon]. As with 
-regular GANs both networks are trained in an adversarial process. In the 
-following sections we give a brief explanation of how the GAIN framework is
-applied, we advice the reader to look at @yoon for the theoretical details.
-
 ### 2.1.1 Data Imputation Problem
-To understand what GAINs do we first need to explain what the problem is, to do
-so let us introduce some notation. Consider the random variable $\mathbf{X}=(X_1, \dots, X_d)$, called the data
-vector, which takes values in a d-dimensional space $V^d$, and a random variable 
-$\mathbf{M}=(M_1, \dots, M_d)$, called the mask vector, taking values in $\{0, 1\}^d$.
-For each $i\in\{1, \dots, d\}$ we define a new space $\tilde{V}=V\cup\{NaN\}$,
-where the variable $NaN$ represents a point not in any $V_i$ which is an 
-unobserved value. Let $\tilde{V}^d=\tilde{V}_1\times\dots\times\tilde{V}_d$
-and define a new random variable $\mathbf{\tilde{X}}\in\tilde{V}^d$ in the following way
-
-\begin{equation}
-\mathbf{\tilde{X}}=\begin{cases}X_i \ \ \text{if }M_i=1 \\ NaN \ \ \text{otherwise}\end{cases}
-\end{equation}
-
-i.e. the random variable $\mathbf{M}$ indicates which entries of $\mathbf{X}$ are observed in
-$\mathbf{\tilde{X}}$. Suppose we have $n$ i.i.d copies $\mathbf{\tilde{X}}$ denoted 
-$\mathbf{\tilde{x}}^1,\dots, \mathbf{\tilde{x}}^n$ then we define the data set 
-$\mathcal{D}=\{(\mathbf{\tilde{x}}^i, \mathbf{m}^i)\}_{i=1}^n$ where 
-each $\mathbf{m_i}$ indicates with a 
-$0$ the values missing in $\mathbf{\tilde{x}}^i$. The goal of data imputation and hence
-the problem we address is that of modeling $P(\mathbf{X}|\mathbf{\tilde{X}}=\mathbf{\tilde{x}}^i)$.
 
 ### 2.1.2 GAIN Methodology
 
-Given data $\mathcal{D}=\{(\mathbf{\tilde{x}}^i, \mathbf{m}^i)\}_{i=1}^n$ as 
-described above consider the function $G: \tilde{V}^d\times\{0,1\}^d\times[0,1]^d\to V^d$
-called the generator which takes as input $\mathbf{\tilde{x}}^i$, $\mathbf{m}^i$
-and a noise vector $\mathbf{z}\in [0,1]^d$ of the same dimension as $\mathbf{\tilde{x}}^i$. 
-This noise vector is sampled 
-independently of $\mathbf{\tilde{x}}^i$ and $\mathbf{m}^i$. We denote the vector
-of imputed values and the completed data vector respectively as
-
-\begin{equation}
-\mathbf{\bar{x}}^i=G(\mathbf{\tilde{x}}^i, \mathbf{m}^i, (\mathbf{1}-\mathbf{m}^i)\odot\mathbf{z})
-\end{equation}
-\begin{equation}
-\mathbf{\hat{x}}^i=\mathbf{m}^i\odot\mathbf{\tilde{x}}^i + (\mathbf{1}-\mathbf{m}^i)\odot\mathbf{\bar{x}}^i
-\end{equation}
-
-where $\mathbf{1}$ denotes a vector of 1s and $\odot$ represents element wise
-multiplication. A function $D:V^d\times\mathcal{H}\to[0,1]^d$, called the 
-discriminator, takes as input completed vectors $\mathbf{\hat{x}}^i$ and
-has the objective of attempting to distinguish
-which components are real (observed) or fake (imputed) -
-this amounts to predicting the mask vector, $\mathbf{m}^i$. In particular
-the $j$-th entry of $D(\mathbf{\hat{x}}^i, \mathbf{h})$ denotes the probability that the
-$j$-th entry of $\mathbf{\hat{x}}^i$ was observed. The vector $\mathbf{h}$ is what
-the authors of GAIN refer to as the hint mechanism which 
-is a matrix that resembles the true mask $\mathbf{m}^i$ but has a number 
-of differences that "helps" the discriminator $D$ predict the true mask $\mathbf{m}$.
-Figure 1 was taken directly from the original GAIN paper and helps understand
-what was mentioned in this section more intuitively.
-
-![GAIN Architecture]("../util/GAIN-arch.png"){#id .class width=90% height=90%}
-
-The objective is as follows: we train $D$ to maximize the probability of 
-correctly predicting $\mathbf{M}$ and $G$ to minimize the probability of 
-$D$ predicting $\mathbf{M}$. Notice the training is adversarial which resembles 
-the original GAN framework. We define the quantity $V(D, G)$ to be
-
-\begin{equation}
-V(G,D)=\mathbb{E}_{\mathbf{\tilde{X}},\mathbf{M},\mathbf{H}}\left[\mathbf{M}^T\log D(\mathbf{\hat{X}}, \mathbf{H})+(\mathbf{1}-\mathbf{M})^T\log(\mathbf{1}-D(\mathbf{\hat{X}}, \mathbf{H}))\right]
-\end{equation}
-
-where log is element wise and dependence on $G$ is trough $\mathbf{\hat{X}}$. 
-The objective can then be described in notation as
-
-\begin{equation}
-\min_{G}\max_{D}V(D, G)
-\end{equation}
-
-which is the known min-max problem introduced by the GAN framework. In practice
-the optimization problem we solve is as follows: let $\mathbf{\hat{M}}=D(\mathbf{\hat{X}}, \mathbf{H})$
-then the optimization problem can be re-written to
-\begin{equation}
-\mathcal{L}(\mathbf{M}, \mathbf{\hat{M}})=\sum_{j=1}^dM_j\log(\hat{M}_j)+(1-M_j)\log(1-\hat{M}_j)
-\end{equation}
-
-\begin{equation}
-\min_{G}\max_{D}\mathbb{E}\left[\mathcal{L}(\mathbf{M}, \mathbf{\hat{M}})\right]
-\end{equation}
-
 ## 2.2 Variable Encoding
-
-In practice there are several techniques to encode categorical variables into
-a continuous or numerical variable. The weight of evidence is one such technique which evolved from the
-logistic regression framework and has been used in the credit scoring world
-for decades [@bhalla]. Since it evolved from credit scoring world, it is 
-generally described as a measure of the separation of good and bad customers.
-This technique is great when used to calculate the information value (IV) of a
-variable, which quantifies the predictive capacity. However in the context of
-generative networks we do not have a target variable as with a typical machine
-learning setting. Hence we derived a very similar formula to that of the weight
-of evidence which we will call it simply as the _weight_ of category $c$.
-
-We define the weight of a category $c$ as follows
-\begin{equation}
-W(c) =\log\left(\frac{\#\text{ of non-}c\text{'s in the data}}{\#\text{ of }c\text{'s in the data}}\right)
-\end{equation}
-Here $\log$ denotes the natural logarithm. In the event that two categories
-result in the same count then vary the count of one of these variables by 1.
-That is, if possible then either add or subtract 1 from the count of one of the
-variables to avoid a collision.
 
 ## 2.3 GAINs on Survey Data
 
