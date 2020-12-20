@@ -1,6 +1,6 @@
 ---
 title: "Filling Survey Missing Data With Generative Adversarial Imputation Networks"
-author: "CYVG"
+author: "Cesar Y. Villarreal Guzman"
 date: "`r format(Sys.time(), '%d %B %Y')`"
 output: pdf_document
 fontsize: 12pt
@@ -78,23 +78,245 @@ could be applied in practice, limitations and areas of future work.
 
 ## 2.1 Generative Adversarial Imputation Networks
 
+First to understand generative adversarial imputation networks (GAIN) we 
+comment on the GAN framework. Generative adversarial nets (GANs) define a framework for estimating 
+generative models via an adversarial process in which two models are 
+trained: a generative model $G$ that captures the data distribution, and a 
+discriminative model $D$ that estimates the probability that a sample came 
+from the training data rather than $G$ [@goodfellow]. Commonly both the 
+generator and discriminator are two separate neural networks.
+
+Generative adversarial imputation networks (GAIN) is an imputation
+algorithm that generalized the idea of traditional GANs. The generator's
+goal is to accurately impute the missing data and the discriminator’s goal
+is to distinguish between observed and imputed components. The discriminator is 
+trained to minimize the classification loss (when classifying which components 
+were observed and which have been imputed), and the generator is trained
+to maximize the discriminator’s misclassification rate [@yoon]. As with 
+regular GANs both networks are trained in an adversarial process. In the 
+following sections we give a brief explanation of how the GAIN framework is
+applied, we advice the reader to look at @yoon for the theoretical details.
+
 ### 2.1.1 Data Imputation Problem
+We beginning by outlining the problem to solve and introducing some
+notation. Consider the random variable $\mathbf{X}=(X_1, \dots, X_d)$, called the data
+vector, which takes values in a d-dimensional space $V^d$, and a random variable 
+$\mathbf{M}=(M_1, \dots, M_d)$, called the mask vector, taking values in $\{0, 1\}^d$.
+For each $i\in\{1, \dots, d\}$ we define a new space $\tilde{V}=V\cup\{NaN\}$,
+where the variable $NaN$ represents a point not in any $V_i$ which is an 
+unobserved value. Let $\tilde{V}^d=\tilde{V}_1\times\dots\times\tilde{V}_d$
+and define a new random variable $\mathbf{\tilde{X}}\in\tilde{V}^d$ in the following way
+
+\begin{equation}
+\mathbf{\tilde{X}}=\begin{cases}X_i \ \ \text{if }M_i=1 \\ NaN \ \ \text{otherwise}\end{cases}
+\end{equation}
+
+i.e. the random variable $\mathbf{M}$ indicates which entries of $\mathbf{X}$ are observed in
+$\mathbf{\tilde{X}}$. Suppose we have $n$ i.i.d copies $\mathbf{\tilde{X}}$ denoted 
+$\mathbf{\tilde{x}}^1,\dots, \mathbf{\tilde{x}}^n$ then we define the data set 
+$\mathcal{D}=\{(\mathbf{\tilde{x}}^i, \mathbf{m}^i)\}_{i=1}^n$ where 
+each $\mathbf{m_i}$ indicates with a 
+$0$ the values missing in $\mathbf{\tilde{x}}^i$. The goal of data imputation 
+is that of modeling $P(\mathbf{X}|\mathbf{\tilde{X}}=\mathbf{\tilde{x}}^i)$.
 
 ### 2.1.2 GAIN Methodology
 
+Given data $\mathcal{D}=\{(\mathbf{\tilde{x}}^i, \mathbf{m}^i)\}_{i=1}^n$ as 
+described above consider the function $G: \tilde{V}^d\times\{0,1\}^d\times[0,1]^d\to V^d$
+called the generator which takes as input $\mathbf{\tilde{x}}^i$, $\mathbf{m}^i$
+and a noise vector $\mathbf{z}\in [0,1]^d$ of the same dimension as $\mathbf{\tilde{x}}^i$. 
+This noise vector is sampled 
+independently of $\mathbf{\tilde{x}}^i$ and $\mathbf{m}^i$. We denote the vector
+of imputed values and the completed data vector respectively as
+
+\begin{equation}
+\mathbf{\bar{x}}^i=G(\mathbf{\tilde{x}}^i, \mathbf{m}^i, (\mathbf{1}-\mathbf{m}^i)\odot\mathbf{z})
+\end{equation}
+\begin{equation}
+\mathbf{\hat{x}}^i=\mathbf{m}^i\odot\mathbf{\tilde{x}}^i + (\mathbf{1}-\mathbf{m}^i)\odot\mathbf{\bar{x}}^i
+\end{equation}
+
+where $\mathbf{1}$ denotes a vector of 1s and $\odot$ represents element wise
+multiplication. A function $D:V^d\times\mathcal{H}\to[0,1]^d$, called the 
+discriminator, takes as input completed vectors $\mathbf{\hat{x}}^i$ and
+has the objective of distinguishing
+which components are real (observed) and which are fake (imputed) -
+this amounts to predicting the mask vector, $\mathbf{m}^i$. In particular
+the $j$-th entry of $D(\mathbf{\hat{x}}^i, \mathbf{h})$ denotes the probability that the
+$j$-th entry of $\mathbf{\hat{x}}^i$ was observed. The vector $\mathbf{h}$ is what
+the authors of GAIN refer to as the hint mechanism which 
+is a matrix that resembles the true mask $\mathbf{m}^i$ but has a number 
+of differences. This hint mechanism as the name should suggest "helps" the discriminator $D$ predict the true mask $\mathbf{m}$.
+Figure 1 was taken from the original GAIN paper and helps understand
+what was mentioned in this section more intuitively by displaying in a graphical
+way the architecture of the GAIN framework.
+
+![GAIN Architecture]("../util/GAIN-arch.png"){#id .class width=90% height=90%}
+
+The objective is as follows: we train $D$ to maximize the probability of 
+correctly predicting $\mathbf{M}$ and $G$ to minimize the probability of 
+$D$ predicting $\mathbf{M}$. Notice the training is adversarial which resembles 
+the original GAN framework. We define the quantity $V(D, G)$ to be
+
+\begin{equation}
+V(G,D)=\mathbb{E}_{\mathbf{\tilde{X}},\mathbf{M},\mathbf{H}}\left[\mathbf{M}^T\log D(\mathbf{\hat{X}}, \mathbf{H})+(\mathbf{1}-\mathbf{M})^T\log(\mathbf{1}-D(\mathbf{\hat{X}}, \mathbf{H}))\right]
+\end{equation}
+
+where log is element wise and dependence on $G$ is trough $\mathbf{\hat{X}}$. 
+The objective can then be described in notation as
+
+\begin{equation}
+\min_{G}\max_{D}V(D, G)
+\end{equation}
+
+which is the known min-max problem introduced by the GAN framework. In practice
+the optimization problem we solve is as follows: let $\mathbf{\hat{M}}=D(\mathbf{\hat{X}}, \mathbf{H})$
+then the optimization problem can be re-written to
+\begin{equation}
+\mathcal{L}(\mathbf{M}, \mathbf{\hat{M}})=\sum_{j=1}^dM_j\log(\hat{M}_j)+(1-M_j)\log(1-\hat{M}_j)
+\end{equation}
+
+\begin{equation}
+\min_{G}\max_{D}\mathbb{E}\left[\mathcal{L}(\mathbf{M}, \mathbf{\hat{M}})\right]
+\end{equation}
+
+Theoretical details and outline of the proposed algorithm should be consulted in 
+the original paper by @yoon.
+
 ## 2.2 Variable Encoding
 
-## 2.3 GAINs on Survey Data
+In practice there are several techniques to encode categorical variables into
+a continuous or numerical variable. The weight of evidence is one such technique which evolved from the
+logistic regression framework and has been used in the credit scoring world
+for decades [@bhalla]. Since it evolved from credit scoring world, it is 
+generally described as a measure of the separation of good and bad customers.
+This technique is great when used to calculate the information value (IV) of a
+variable, which quantifies the predictive capacity. However in the context of
+generative networks we do not have a target variable as with a typical machine
+learning setting. Instead using the weigh of evidence as inspiration we define 
+an encoding which we will refer to as the _weight of a category_ $c$. The 
+proposed encoding is as follows:
 
+\begin{equation}
+W(c) =\log\left(\frac{\#\text{ of non-}c\text{'s in the data}}{\#\text{ of }c\text{'s in the data}}\right)
+\end{equation}
+
+Here $\log$ denotes the natural logarithm. In the event that two categories
+result in the same count then vary the count of one of these variables by 1.
+That is, if possible then either add or subtract 1 from the count of one of the
+variables to avoid a collision. A collision means two values which are encoded
+onto the same number. In practice on should keep track of the weights to convert
+back and forth from weight to category. 
+
+## 2.3 GAINs on Survey Data
+The proposed method is then to combine both ideas to complete[^complete] the dataset.
+First given the survey data set one must use the encoding technique described in 
+$2.2$ to encode all categories in each column, and filling missing values with 0s.
+This should output a "new" dataset with only numerical variables. We then train 
+the proposed imputation networks and once trained apply them to the data set.
+To "translate" back into categories we use the nearest neighbor approach. Suppose
+the original set of categories $C=\{c_1, \dots, c_k\}$ gets encoded into 
+$C_{weights}=\{c'_1,\dots, c'_k\}$ where each $c'_i\in\mathbb{R}$ then for an 
+imputed prediction $\hat{x}$ we replace $\hat{x}$ with
+
+\begin{equation*}
+\hat{c}'=\text{argmin}_{c'\in C_{weights}} ||\hat{x}-c'||
+\end{equation*}
+
+where $||a-b||$ denotes the usual euclidean norm in $\mathbb{R}$. Then
+clearly $\hat{c}'\in C_{weights}$ and we can decode back onto a categorical 
+variable.
+ 
+[^complete]: Here complete means to fill the missing values in the data set using the proposed imputation algorithm.
 
 # 3. Experiment
+To quantify the efficacy of the proposed alternative we conducted two 
+experiments, first on a traditional web survey, the _Kaggle Data Science Survey_.
+With it we created smaller samples of the original survey to test the 
+performance when the number of observations decreases. We also used census data
+from the _American Community Survey_(ACS) to test the efficiency of the method on a large
+scale survey.
+In both tests we randomly removed cells to model missing data, specifically
+we tested removing 10, 20, 30 40 and 50% of the total cell count. 
+Moreover since we removed at random, thirty
+trials were performed for each percentage, i.e. thirty trials removing 10% then 
+thirty removing 20% with and so on. On the coming sections we give more context
+on the data used for the experiments and comment on the experiment itself and
+the results obtained.
 
 ## 3.1 Data
 
-## 3.2 Pre-processing and Network Architecture
+Before talking about the specific data sets we must comment on the differences
+between a probability and a non-probability survey. At its core a non-probability
+survey is sample obtained by non-random selection, or a selection without the use of probability.
+his contrasts with probability samples, where, a full list of the target population
+is available from which respondents are selected uniformly at random, although 
+the exact method may vary depending on the study.
+
+Most contemporary research involving surveys use non-probability surveys
+due to the simplicity in terms of logistics and financial costs. However, it 
+is important to point out that non-probability trade complexity for risk of a
+biased sample. A big portion of research has been devoted to adjusting biased 
+survey samples or non-representative samples. Perhaps the most
+popular method used in the social sciences is the use multilevel regression 
+with poststratification [@little_1993; @park_gelman_bafumi_2004] and a new
+method using the same ideas like stacked regression with poststratification [@buttice_highton_2017].
+
+The two surveys used are examples of non-probability and probability surveys.
+In particular we chose an online survey (Kaggle Data Science Survey) as our
+non-probability survey because most non-probability surveys in the past years 
+have been online convenience samples. Moreover we used the ACS data as
+our probability survey because as online non-probability surveys become more 
+prevalent, census data and census samples by definition have the requirement of 
+being a non-biased. It is because of this that probability surveys remain the 
+most convenient tool to achieve this.
+
+The 2020 Kaggle Machine Learning & Data Science survey [@kaggle] was an online survey
+conducted from October 7 to 30 or approximately 3.5 weeks. As with most contemporary
+surveys, the Kaggle survey is not a random sample from the population of interest.
+Instead, an invitation to participate in the survey was sent to anyone who 
+opted-in to the Kaggle email list. Cleaned data was released under a CC 2.0
+license as part of an ongoing data science competition hosted on Kaggle[^kag].
+
+[^kag]: Kaggle Data and Challenge: https://www.kaggle.com/c/kaggle-survey-2020/overview
+
+The American Community Surveys (ACS) [@acs_cit] is a project of the U.S. 
+Census Bureau that has replaced the decennial census as the key source of 
+information about the American population and its housing characteristics. This survey
+has been conducted since 2000 and the most recent sample released is from 2018. An important distinction
+is that the ACS is a sample and not a full census data set. More information
+on how to access the ACS data[^acs] can be found in the Appendix.
+
+Moreover, the ACS survey is sent to a sample of addresses (about 3.5 million) 
+in the 50 states, District of Columbia, and Puerto Rico and it is 
+conducted every month, every year. The Master Address File (MAF) is the
+Census Bureau’s official inventory of known housing units in the United States 
+and Puerto Rico. It serves as the source of addresses and hence sampling frame
+for the ACS. Their sampling process is a complicated 2 phase process but in 
+summary first they assign addresses to sixteen sampling strata, then determine 
+base rate and calculate stratum sampling rates and finally systematically selecting samples.
+Hence, we can classify the ACS as a probability sample.
+
+[^acs]: ACS Data: https://usa.ipums.org/usa/
+
+
+## 3.2 Data Processing and Network Architectures
+
+To access the ACS surveys an account from IPUMS USA website is required[^2].
+The database allows for the creation of a customized data set. In particular we chose the 
+2018 ACS survey and selected the following variables: sex, age, race,
+and Hispanic origin. Automatically, other variables are appended to the selection,
+and we removed them for the purpose of the experiment. There were no missing values
+in the data set. The ACS data set contained 4 columns and $2,499,621$ rows.
+
+A subset of columns from the Kaggle survey was used for this experiment. We limited the number
+of columns because the original survey contained logic and depending on some of the
+answers more questions would be asked. Therefore, we selected 8 questions that
+where asked to all respondents. This columns contained rows with missing values
+which where removed for the purposes of this experiment. The remaining 
+Kaggle data set contained 8 columns and $16,374$ rows.
 
 ## 3.3 Results
-
 
 
 # 4. Discussion
