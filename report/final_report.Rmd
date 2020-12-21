@@ -10,9 +10,9 @@ abstract: |
   In this paper we propose an alternative method for dealing with 
   missing values on survey data sets. The method leverages two known techniques, 
   categorical encoding and generative adversarial imputation networks. We test
-  this approach on the "Kaggle Data Science Survey" and the "Stack Overflow Annual Developer Survey",
+  this approach on the "Kaggle Data Science Survey" and the "American Community Survey",
   we experiment with different proportions of missing values and sample sizes and 
-  find the technique to yield high quality data imputations. 
+  find the technique to yield accurate imputations. 
   
   **Keywords**: Generative Adversarial Networks; Imputation Algorithms; Surveys
 ---
@@ -21,6 +21,7 @@ abstract: |
 knitr::opts_chunk$set(echo = FALSE)
 
 library(tidyverse)
+library(cowplot)
 ```
 
 # 1. Introduction
@@ -57,7 +58,7 @@ categorical variables, and in particular when the data comes from a survey.
 In this paper we propose an alternative method for data imputation in survey 
 data which comprises of combining two known methods, categorical encoding and 
 a state of the art imputation algorithm. Specifically, we encode categorical
-variables with a technique based on the weight of evidence (WOE) method and then use the 
+variables with a technique that is based on the weight of evidence (WOE) method and then use the 
 imputation algorithm known as 
 generative adversarial imputation networks (GAIN) to fill missing values. 
 
@@ -66,10 +67,10 @@ we elaborate on generative adversarial imputation networks and how they are
 applied in this context by discussing the proposed encoding technique based on 
 the weight of evidence method.
 In section $3$ we discuss the experiments
-we conducted on the "_Kaggle Data Science Survey_" and
-the "_Stack Overflow Annual Developer Survey_" to test the effectiveness of this 
-method. In this section we comment on the surveys, network architectures and 
-hyperparameters and our empirical results. Finally, in the last section
+we conducted on the "_Kaggle Data Science Survey_" [@kaggle]] and
+the "_American Community Survey_" [@acs_cit] to test the effectiveness of this 
+method. In this section we comment on the surveys, the experiment and our empirical results. 
+Finally, in the last section
 we comment on our results and the implications, how this method
 could be applied in practice, limitations and areas of future work.
 
@@ -95,7 +96,8 @@ were observed and which have been imputed), and the generator is trained
 to maximize the discriminator’s misclassification rate [@yoon]. As with 
 regular GANs both networks are trained in an adversarial process. In the 
 following sections we give a brief explanation of how the GAIN framework is
-applied, we advice the reader to look at @yoon for the theoretical details.
+applied, we advice the reader to look at @yoon for theoretical details and 
+the training algorithms.
 
 ### 2.1.1 Data Imputation Problem
 We beginning by outlining the problem to solve and introducing some
@@ -180,7 +182,7 @@ then the optimization problem can be re-written to
 \min_{G}\max_{D}\mathbb{E}\left[\mathcal{L}(\mathbf{M}, \mathbf{\hat{M}})\right]
 \end{equation}
 
-Theoretical details and outline of the proposed algorithm should be consulted in 
+As mentioned other theoretical details and the training algorithm should be consulted in 
 the original paper by @yoon.
 
 ## 2.2 Variable Encoding
@@ -198,85 +200,86 @@ an encoding which we will refer to as the _weight of a category_ $c$. The
 proposed encoding is as follows:
 
 \begin{equation}
-W(c) =\log\left(\frac{\#\text{ of non-}c\text{'s in the data}}{\#\text{ of }c\text{'s in the data}}\right)
+W(c) =\log\left(\frac{\#\text{ of non-}c\text{'s}}{\#\text{ of }c\text{'s}}\right)
 \end{equation}
 
 Here $\log$ denotes the natural logarithm. In the event that two categories
 result in the same count then vary the count of one of these variables by 1.
 That is, if possible then either add or subtract 1 from the count of one of the
-variables to avoid a collision. A collision means two values which are encoded
-onto the same number. In practice on should keep track of the weights to convert
-back and forth from weight to category. 
+variables to avoid a collision.
 
 ## 2.3 GAINs on Survey Data
 The proposed method is then to combine both ideas to complete[^complete] the dataset.
-First given the survey data set one must use the encoding technique described in 
+First, given the survey data set one must use the encoding technique described in 
 $2.2$ to encode all categories in each column, and filling missing values with 0s.
 This should output a "new" dataset with only numerical variables. We then train 
-the proposed imputation networks and once trained apply them to the data set.
-To "translate" back into categories we use the nearest neighbor approach. Suppose
+the proposed imputation networks. To accomplish this we split the data into a train
+and test split and depending on the loss adjust hyperparameters. Once the networks 
+are trained then we apply the generator to the entire data set.
+Then to "translate" back to categorical we use the nearest neighbor approach. Suppose
 the original set of categories $C=\{c_1, \dots, c_k\}$ gets encoded into 
-$C_{weights}=\{c'_1,\dots, c'_k\}$ where each $c'_i\in\mathbb{R}$ then for an 
+$C_{weights}=\{c'_1,\dots, c'_k\}$ where each $c'_i\in\mathbb{R}$. Then for an 
 imputed prediction $\hat{x}$ we replace $\hat{x}$ with
 
 \begin{equation*}
 \hat{c}'=\text{argmin}_{c'\in C_{weights}} ||\hat{x}-c'||
 \end{equation*}
 
-where $||a-b||$ denotes the usual euclidean norm in $\mathbb{R}$. Then
+where $||a-b||$ denotes the usual euclidean norm. Then
 clearly $\hat{c}'\in C_{weights}$ and we can decode back onto a categorical 
 variable.
  
 [^complete]: Here complete means to fill the missing values in the data set using the proposed imputation algorithm.
 
 # 3. Experiment
-To quantify the efficacy of the proposed alternative we conducted two 
-experiments, first on a traditional web survey, the _Kaggle Data Science Survey_.
-With it we created smaller samples of the original survey to test the 
-performance when the number of observations decreases. We also used census data
-from the _American Community Survey_(ACS) to test the efficiency of the method on a large
-scale survey.
-In both tests we randomly removed cells to model missing data, specifically
-we tested removing 10, 20, 30 40 and 50% of the total cell count. 
-Moreover since we removed at random, thirty
-trials were performed for each percentage, i.e. thirty trials removing 10% then 
-thirty removing 20% with and so on. On the coming sections we give more context
-on the data used for the experiments and comment on the experiment itself and
-the results obtained.
 
 ## 3.1 Data
+To quantify the efficacy of the proposed alternative we conducted two 
+experiments, first on a traditional web survey, the _Kaggle Data Science Survey_, and the _American Community Survey_ (ACS), a census sample, to test the method on a large
+scale survey.
 
 Before talking about the specific data sets we must comment on the differences
 between a probability and a non-probability survey. At its core a non-probability
 survey is sample obtained by non-random selection, or a selection without the use of probability.
-his contrasts with probability samples, where, a full list of the target population
+This contrasts with probability samples, where, a full list of the target population
 is available from which respondents are selected uniformly at random, although 
 the exact method may vary depending on the study.
 
 Most contemporary research involving surveys use non-probability surveys
 due to the simplicity in terms of logistics and financial costs. However, it 
-is important to point out that non-probability trade complexity for risk of a
-biased sample. A big portion of research has been devoted to adjusting biased 
-survey samples or non-representative samples. Perhaps the most
-popular method used in the social sciences is the use multilevel regression 
-with poststratification [@little_1993; @park_gelman_bafumi_2004] and a new
-method using the same ideas like stacked regression with poststratification [@buttice_highton_2017].
+is important to point out that non-probability surveys trade complexity for risk of
+bias. A big portion of research has been devoted to adjusting biased 
+survey samples or non-representative samples. An example of a
+popular method is multilevel regression 
+with poststratification [@little_1993; @park_gelman_bafumi_2004].
 
-The two surveys used are examples of non-probability and probability surveys.
+The two surveys used are examples of non-probability and probability surveys respectively.
 In particular we chose an online survey (Kaggle Data Science Survey) as our
 non-probability survey because most non-probability surveys in the past years 
 have been online convenience samples. Moreover we used the ACS data as
 our probability survey because as online non-probability surveys become more 
 prevalent, census data and census samples by definition have the requirement of 
-being a non-biased. It is because of this that probability surveys remain the 
-most convenient tool to achieve this.
+being non-biased. It is because of this that probability surveys remain the 
+most convenient tool to get census data with no biases.
 
 The 2020 Kaggle Machine Learning & Data Science survey [@kaggle] was an online survey
 conducted from October 7 to 30 or approximately 3.5 weeks. As with most contemporary
-surveys, the Kaggle survey is not a random sample from the population of interest.
+surveys, the survey is not a random sample from the population of interest.
 Instead, an invitation to participate in the survey was sent to anyone who 
 opted-in to the Kaggle email list. Cleaned data was released under a CC 2.0
 license as part of an ongoing data science competition hosted on Kaggle[^kag].
+
+A subset of questions were selected for this experiment. We limited the number
+of questions because the original survey contained logic that would display different
+questions to respondents depending on their previous answers. Therefore, we selected 8 questions that
+where asked to all respondents. The resulting subset contained rows with missing values
+which where removed for this experiment. Therefore the data used was a 
+Kaggle subset containing 8 columns and $16,374$ rows.
+
+It is important to point out that most online surveys do not achieve such a high
+response rate. Hence, to test how sample size affects the proposed method we extracted
+two smaller subsets from the original Kaggle survey. One of size of $1000$ and
+the other of size $100$. The selection was done at random to avoid bias.
 
 [^kag]: Kaggle Data and Challenge: https://www.kaggle.com/c/kaggle-survey-2020/overview
 
@@ -299,9 +302,6 @@ Hence, we can classify the ACS as a probability sample.
 
 [^acs]: ACS Data: https://usa.ipums.org/usa/
 
-
-## 3.2 Data Processing and Network Architectures
-
 To access the ACS surveys an account from IPUMS USA website is required[^2].
 The database allows for the creation of a customized data set. In particular we chose the 
 2018 ACS survey and selected the following variables: sex, age, race,
@@ -309,17 +309,289 @@ and Hispanic origin. Automatically, other variables are appended to the selectio
 and we removed them for the purpose of the experiment. There were no missing values
 in the data set. The ACS data set contained 4 columns and $2,499,621$ rows.
 
-A subset of columns from the Kaggle survey was used for this experiment. We limited the number
-of columns because the original survey contained logic and depending on some of the
-answers more questions would be asked. Therefore, we selected 8 questions that
-where asked to all respondents. This columns contained rows with missing values
-which where removed for the purposes of this experiment. The remaining 
-Kaggle data set contained 8 columns and $16,374$ rows.
 
 ## 3.3 Results
 
+```{r, fig.align='center', fig.height=5, fig.width=9, fig.cap="Average RMSE Scores"}
+# Load results
+acs_results <- read.csv("../data/acs_gain_results.csv") %>% 
+  subset(select = -c(X))
+
+kagg_results <- read.csv("../data/gain_results.csv") %>%
+  subset(select = -c(X, Unnamed..0, Unnamed..0.1))
+
+# RMSE kaggle plot
+kaggle_rmse_plot <- kagg_results %>%
+  select(PMissing, FullKaggleRMSE, X1000KaggleRMSE, X100KaggleRMSE) %>% 
+  pivot_longer(cols = c(FullKaggleRMSE, X1000KaggleRMSE, X100KaggleRMSE),
+               names_to="experiment", values_to="rmse") %>% 
+  mutate(Experiment = plyr::mapvalues(.$experiment, 
+                                 from=c("FullKaggleRMSE", "X1000KaggleRMSE", "X100KaggleRMSE"),
+                                 to=c("Full Kaggle Survey", "1000 Samples", "100 Samples"))) %>% 
+  group_by(Experiment) %>%
+  ggplot(aes(x = PMissing, y=rmse, 
+             group=as.factor(Experiment), 
+             linetype=Experiment)) +
+  geom_point(aes(colour = Experiment), size=2) +
+  geom_line(aes(colour=Experiment)) + 
+  ylab("RMSE") + xlab("Proportion of Missing Cells") + 
+  theme_light() + 
+  scale_color_brewer(palette = "Set1") + 
+  scale_x_continuous(breaks=c(.1, .2, .3, .4), 
+                     labels = c("10%", "20%", "30%", "40%")) + 
+  theme(legend.position = c(.05, .95),
+    legend.justification = c("left", "top"),
+    legend.title = element_blank()) + 
+  scale_y_continuous(limits=c(0, 0.03)) +
+  labs(title = "Kaggle Survey RMSE Results")
+
+
+acs_rmse_plot <- acs_results %>% 
+  mutate(pmiss = c(.1, .2, .3, .4)) %>% 
+  ggplot(aes(x = pmiss, y = ACS_RMSE)) +
+  geom_point(size=2, color="grey28") +
+  geom_line(linetype = "dashed") + 
+  theme_light() +
+  ylab("RMSE") + xlab("Proportion of Missing Cells") +
+  scale_color_brewer(palette = "Set1") + 
+  scale_x_continuous(breaks=c(.1, .2, .3, .4), 
+                     labels = c("10%", "20%", "30%", "40%")) +
+  labs(title="ACS Survey RMSE Results")
+
+plot_grid(kaggle_rmse_plot, acs_rmse_plot)
+```
+```{r, fig.align='center', fig.height=4, fig.width=6, fig.cap="Average Miss-Classification Scores"}
+kagg_results %>% 
+  select(PMissing, FullKaggleAcc, X1000KaggleAcc, X100KaggleAcc) %>% 
+  mutate(FullKaggleAcc = (1-FullKaggleAcc)/PMissing,
+         X1000KaggleAcc = (1-X1000KaggleAcc)/PMissing,
+         X100KaggleAcc = (1-X100KaggleAcc)/PMissing,
+         ACS_Acc = (1-acs_results$ACS_Acc)/PMissing) %>% 
+  pivot_longer(cols = c(FullKaggleAcc, X1000KaggleAcc, X100KaggleAcc, ACS_Acc),
+               names_to="experiment", values_to="prop") %>% 
+  mutate(Experiment = plyr::mapvalues(.$experiment, 
+                                 from=c("FullKaggleAcc", "X1000KaggleAcc", 
+                                        "X100KaggleAcc", "ACS_Acc"),
+                                 to=c("Full Kaggle Survey", "1000 Samples", 
+                                      "100 Samples", "ACS"))) %>% 
+  group_by(Experiment) %>%
+  ggplot(aes(x = PMissing, y=prop,
+             group=as.factor(Experiment),
+             linetype=Experiment)) +
+  geom_point(aes(colour = Experiment), size=2) +
+  geom_line(aes(colour=Experiment)) +
+  ylab("Proportion of Miss-Classification") + xlab("Proportion of Missing Cells") +
+  theme_light() +
+  scale_color_brewer(palette = "Set2") +
+  scale_y_continuous(limits = c(0, .5)) +
+  scale_x_continuous(breaks=c(.1, .2, .3, .4),
+                     labels = c("10%", "20%", "30%", "40%")) +
+  theme(legend.title = element_blank())
+```
+In total we used 4 data sets. The fully cleaned ACS survey, the cleaned Kaggle survey and the 
+smaller subsets of sizes $1000$ and $100$. In each test 
+we randomly removed cells to model missing data, specifically
+we tested removing 10, 20, 30 and 40% of the total cell count. 
+Thirty trials were performed for each percentage to avoid possible biases, i.e.
+thirty trials removing 10% then thirty removing 20% and so on. 
+
+\pagebreak
+```{r}
+kagg_results %>% 
+  select(PMissing, FullKaggleAcc, X1000KaggleAcc, X100KaggleAcc) %>%
+  mutate(FullKaggleAcc = 100*(PMissing - (1-FullKaggleAcc)),
+         X1000KaggleAcc = 100*(PMissing - (1-X1000KaggleAcc)),
+         X100KaggleAcc = 100*(PMissing - (1-X100KaggleAcc)),
+         ACS_Acc = 100*(PMissing - (1-acs_results$ACS_Acc)),
+         PMissing = 100*PMissing) %>% 
+  knitr::kable(
+    col.names = c("% Missing Cells", "Full Kaggle", "1000 Kaggle", "100 Kaggle", "ACS"),
+    digits=2,
+    caption = "Percentage of Data Recovered.",
+    align = "lcccr"
+  )
+```
+We used two metrics for our experiment. Root mean squared error (RMSE),
+a metric that quantifies the root average distance (error) between the ground truth 
+and the model predictions, was used to evaluate the continuous predictions made by
+the imputation model. Then, when we converted predictions back to categorical 
+variables and evaluated how many of the imputed values where miss-classified, 
+this lead to calculating the proportion of miss-classification. Figure $2$ 
+displays the average RMSE scores for each set of tests and Figure 
+$3$ the average proportion of miss-classification.
+
+As expected, in Figure 2 we can see a positive linear trend between the proportion
+of missing values and RMSE. This is also true for proportion of miss-classification
+but it is surprising that there is significant difference in the slopes 
+between the plots in Figure 2 and Figure 3. Moreover it is clear that the method
+performs better on the non-probability survey than on the census sample however
+we elaborate more on why this is the case in the discussion section.
+
+Finally, Table 1 displays the amount of "recovered" data using our method. What we
+mean by "recovered" is the proportion of correctly predicted cells, for example: 
+suppose we removed $20$% of the cells. 
+Then, we say we recovered $15$% if we correctly predicted $15$% of the missing cells. 
+
 
 # 4. Discussion
+
+Let us begin our discussion by commenting on the results obtained from the 
+experiments. Overall we can see the effectiveness of the method for filling
+missing values, in the worst case we recovered a bit more than half of the missing values and 
+on the better cases we recovered more than $80$%. The 
+RMSE scores obtained seem to be unexpectedly small however, it is important to not forget
+that they were expected to be. This is because the majority of the data remained 
+untouched. 
+
+In the results section we comment on the significant difference between the slopes
+of the RMSE plots and the proportion of miss-classification. One possible 
+explanation could be the effectiveness of the nearest neighbor approach when decoding
+back to categorical variables. It is an interesting question for the future to 
+investigate how these slopes change as more categories are introduced to the set
+of possible responses.
+
+\pagebreak
+
+Figure 2 and more specifically the ACS results may be a bit of a red herring 
+because it appears in plain sight as if the results are much worst than the Kaggle survey. 
+It is important to recall that the RMSE is an
+average and the second metric is a proportion. We mention this because there 
+is considerable difference in dimensions between the Kaggle survey and the ACS.
+Recall that the ACS data set contains more than $2$ million observations in comparison
+to $16,000$ for the Kaggle survey. 
+In other words the difference in scores was to be expected, objectively
+the results for the ACS survey were just as good as the 1000 Kaggle survey sample 
+and the full Kaggle survey.
+
+One of the reasons why we did not test the method on smaller samples of the ACS
+data set is because we hypothesize that there is no drop in performance due to 
+the type of survey, i.e. there is no difference in performance between probability 
+and non-probability surveys. We make this claim because
+there is enough research on neural networks having the capacity to 
+represent a wide variety of distributions or more generally continuous functions
+between euclidean and non-euclidean spaces
+[@pinkus_1999; @lu2017expressive; @hanin2018approximating; @anastasis2020]. 
+
+The variable that we suspected would have an impact in performance is size of 
+available data and both Figures 2 and 3 provide evidence of this claim. This is a common
+theme in the deep learning literature, the more data available the better the 
+performance of neural networks. In practice, the method should be 
+applied on samples with at least $1000$ observations, although this is just 
+a recommendation more than an empirical fact. An area of future work could be
+developing a more appropriate method for survey response imputation when the
+available sample size is small, i.e. in the hundreds or less.
+
+To comment on some of the limitations of the method, we first must address what
+is perhaps the biggest limitation of all imputation algorithms and that is that
+at the end of the day we replace missing values with mere predictions. In a controlled
+setting like the one in this experiment we have a ground truth to compare our 
+predictions but in a practical setting this is not the case. The argument 
+that this paper, and most imputation algorithm papers make is that the 
+predictions can be very "close" to the ground truth.
+
+In addition, the biggest drawback of the Survey GAIN method, specifically,
+is the complexity that comes associated with it. The GAIN framework is perhaps
+one of the best imputation algorithms at
+the moment however, the requirement to train
+two neural networks is a huge limitation. This is because survey researchers need 
+to find the best set of hyperparameters
+like network architecture, activation functions, learning rates, etc. 
+
+What's more is that the method 
+is not even an option for researchers whose main discipline is not statistics or
+computer science. Even in the scenario where the researcher's main discipline is
+statistics or computer science, there is an another prerequisite namely, a
+minimum prior understanding of generative models and deep learning.
+
+As a counterpoint we would like to argue that the proposed method is in its best state and
+why a change to the main imputation method may be harmful to performance. Moreover we will briefly comment 
+on how the previously stated drawbacks could be solved.
+
+\pagebreak
+As mentioned the GAIN framework has shown to be among the best performing imputation 
+algorithms however, it is not the best proven method.
+A more recent method MisGAN by @li2019misgan displayed better results than GAINs. 
+The problem is that
+the method involves training five networks instead of two, making it an even less practical
+solution to the imputation problem than GAINs. On the contrary other imputation 
+algorithms, which may be simpler, such as
+expectation–maximization (EM), multiple imputation by chained equations (MICE),
+matrix factorization or auto-encoders may perform worse and suffer significant 
+performance differences depending on the type of survey. 
+
+The development of automated imputation pipelines for surveys which leverage the proposed method,
+could potentially solve the complexity problems that are associated. The best 
+set of hyperparameters can be found in an algorithmic way with methods such as
+grid search. The code used for this experiment follows some of the basic 
+software engineering principles and can easily be extended into a more robust
+framework, a link to the repository hosting the code used in this project can be
+found in the Appendix. Making such a software package is by no means
+easy but it certainly proposes a solution if the method is to be widely adopted.
+
+Data imputation will continue to be an area that can be improved, however 
+there is an interesting opportunity for future work on developing better imputation
+algorithms for niche data sets like surveys. Similarly other algorithms like 
+MisGANs could be used to test how much better they are against GAINS. Finally,
+the encoding methodology is what could be improved the most, nearest neighbors is
+known to be a simple and effective algorithm that comes at a high computational 
+cost both in time and memory. A better encoding technique would introduce a much
+more efficient encoding and decoding method.
+
+In conclusion we have proposed a new data imputation alternative when dealing with
+survey data or when the data set is comprised of only categorical variables. The
+proposed method leverages the already existing imputation algorithm known as 
+generative adversarial imputation networks and a new encoding/decoding methodology
+for transforming categorical responses to numerical observations. We conducted
+experiments on a non-probability and probability survey and found that the
+method accurately predicts the missing values, in the best cases we accurately
+predicted more than 80% of the missing values. Some suggestions were given  in
+order to adopt this method in a more practical setting as well as multiple suggestions
+for future work.
+\pagebreak
+
+# Appendix
+
+All the code used for this project can be found here:
+
+\[\mbox{https://github.com/cesar-yoab/Survey-GAINs}\]
+
+## Network Hyperparameters
+As explained in the method section, GAINs are made up of two networks, a generator
+and a discriminator. The original paper calls for both networks to be made up of
+fully connected layers. In the experiment we used the same network architectures
+for the generator and discriminator. The architectures are as follows:
+
+#### Kaggel Network Architecture
+\[\mbox{input}(16)\rightarrow FC(16, 64)\underset{GELU}\rightarrow FC(64, 128)\underset{GELU}\rightarrow FC(128, 64)\underset{GELU}\rightarrow FC(64, 8)\rightarrow \mbox{output}(8)\]
+
+#### ACS Network Architecture
+\[\mbox{input}(8)\rightarrow FC(8, 64)\underset{GELU}\rightarrow FC(64, 128)\underset{GELU}\rightarrow FC(128, 64)\underset{GELU}\rightarrow FC(64, 8)\rightarrow \mbox{output}(4)\]
+
+Here $FC$ denotes a fully connected layer, and $GELU$ the activation function [@hendrycks2020gaussian]
+used for that layer. We used the Adam optimizer with learning rate set to
+$0.001$ for all experiments. While training the 
+networks we noticed that there is always a "sweet spot" on the number of epochs in 
+which the best performance is achieved. In Tables $x$ and $y$ we provide the 
+number of epochs used and the $\alpha$ value used in the GAIN training algorithm.
+
+```{r}
+data.frame(
+  FullKaggle = c(40),
+  X1000Kaggle = c(30),
+  X100Kaggle = c(30),
+  ACS = c(1)
+) %>% knitr::kable(col.names = c("Full Kaggle", "1000 Kaggle", "100 Kaggle", "ACS"),
+                   caption = "Number of training epochs used.", align = "lccr")
+
+data.frame(
+  FullKaggle = c(1000),
+  X1000Kaggle = c(100),
+  X100Kaggle = c(100),
+  ACS = c(1000)
+) %>% knitr::kable(col.names = c("Full Kaggle", "1000 Kaggle", "100 Kaggle", "ACS"),
+                   caption = "Alpha value used in GAIN training.", align = "lccr")
+
+```
 
 
 \pagebreak
