@@ -445,23 +445,23 @@ untouched.
 
 In the results section we comment on the significant difference between the slopes
 of the RMSE plots and the proportion of miss-classification. One possible 
-explanation could be the effectiveness of the nearest neighbor approach when decoding
-back to categorical variables. It is an interesting question for the future to 
+explanation could be that as we increase the number of untouched variables, the
+average distance between our predictions and the ground truth increases. This
+is a common theme when dealing with averages. Moreover, the nearest neighbors 
+approach is effective because we effectively remove this "error" and decode 
+to a categorical variable. It is an interesting question for the future to 
 investigate how these slopes change as more categories are introduced to the set
 of possible responses.
 
-\pagebreak
+
 
 Figure 2 and more specifically the ACS results may be a bit of a red herring 
 because it appears in plain sight as if the results are much worst than the Kaggle survey. 
-It is important to recall that the RMSE is an
-average and the second metric is a proportion. We mention this because there 
+It is important to recall that the RMSE is an average. We mention this because there 
 is considerable difference in dimensions between the Kaggle survey and the ACS.
 Recall that the ACS data set contains more than $2$ million observations in comparison
-to $16,000$ for the Kaggle survey. 
-In other words the difference in scores was to be expected, objectively
-the results for the ACS survey were just as good as the 1000 Kaggle survey sample 
-and the full Kaggle survey.
+to $16,000$ for the Kaggle survey. In other words the difference in RMSE
+scores was to be expected.
 
 One of the reasons why we did not test the method on smaller samples of the ACS
 data set is because we hypothesize that there is no drop in performance due to 
@@ -472,7 +472,18 @@ represent a wide variety of distributions or more generally continuous functions
 between euclidean and non-euclidean spaces
 [@pinkus_1999; @lu2017expressive; @hanin2018approximating; @anastasis2020]. 
 
-The variable that we suspected would have an impact in performance is size of 
+Having said that, Figure 3 provides evidence that the network did not
+learn the underlying distribution to the extent that the networks for the 
+Kaggle models did. This is likely because the Kaggle data is a highly biased
+sample and the distribution that generates it is easier to learn. During the
+training process we noticed that there is always a "sweet spot" with the number
+of training epochs that majorly impacts the performance of the networks. It also
+a possibility that we failed to find the most optimal set of hyperparameters. 
+This is also very common in the deep learning literature due to the volatility
+of neural networks.
+
+Moreover, the variable that we suspected would have a significant impact 
+in performance is size of 
 available data and both Figures 2 and 3 provide evidence of this claim. This is a common
 theme in the deep learning literature, the more data available the better the 
 performance of neural networks. In practice, the method should be 
@@ -497,6 +508,8 @@ two neural networks is a huge limitation. This is because survey researchers nee
 to find the best set of hyperparameters
 like network architecture, activation functions, learning rates, etc. 
 
+
+
 What's more is that the method 
 is not even an option for researchers whose main discipline is not statistics or
 computer science. Even in the scenario where the researcher's main discipline is
@@ -507,7 +520,6 @@ As a counterpoint we would like to argue that the proposed method is in its best
 why a change to the main imputation method may be harmful to performance. Moreover we will briefly comment 
 on how the previously stated drawbacks could be solved.
 
-\pagebreak
 As mentioned the GAIN framework has shown to be among the best performing imputation 
 algorithms however, it is not the best proven method.
 A more recent method MisGAN by @li2019misgan displayed better results than GAINs. 
@@ -528,6 +540,14 @@ framework, a link to the repository hosting the code used in this project can be
 found in the Appendix. Making such a software package is by no means
 easy but it certainly proposes a solution if the method is to be widely adopted.
 
+Finally, the most noticeable limitation of our method is the inefficiency of the
+nearest neighbors algorithm. This popular machine learning method is well 
+known to be a very inefficient algorithm when it comes to time and space complexity
+mainly because at all times we have to keep a set of values in memory and test
+each one of them one by one. As a result there is a noticeable increase in training and 
+decoding time when using the ACS data set and should be taken into consideration
+when dealing with very large data sets.
+
 Data imputation will continue to be an area that can be improved, however 
 there is an interesting opportunity for future work on developing better imputation
 algorithms for niche data sets like surveys. Similarly other algorithms like 
@@ -536,6 +556,7 @@ the encoding methodology is what could be improved the most, nearest neighbors i
 known to be a simple and effective algorithm that comes at a high computational 
 cost both in time and memory. A better encoding technique would introduce a much
 more efficient encoding and decoding method.
+
 
 In conclusion we have proposed a new data imputation alternative when dealing with
 survey data or when the data set is comprised of only categorical variables. The
@@ -565,7 +586,7 @@ for the generator and discriminator. The architectures are as follows:
 \[\mbox{input}(16)\rightarrow FC(16, 64)\underset{GELU}\rightarrow FC(64, 128)\underset{GELU}\rightarrow FC(128, 64)\underset{GELU}\rightarrow FC(64, 8)\rightarrow \mbox{output}(8)\]
 
 #### ACS Network Architecture
-\[\mbox{input}(8)\rightarrow FC(8, 64)\underset{GELU}\rightarrow FC(64, 128)\underset{GELU}\rightarrow FC(128, 64)\underset{GELU}\rightarrow FC(64, 8)\rightarrow \mbox{output}(4)\]
+\[\mbox{input}(8)\rightarrow FC(8, 64)\underset{GELU}\rightarrow FC(64, 128)\underset{GELU}\rightarrow FC(128, 64)\underset{GELU}\rightarrow FC(64, 4)\rightarrow \mbox{output}(4)\]
 
 Here $FC$ denotes a fully connected layer, and $GELU$ the activation function [@hendrycks2020gaussian]
 used for that layer. We used the Adam optimizer with learning rate set to
